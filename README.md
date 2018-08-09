@@ -3,4 +3,4 @@ Coursera course. Final assignment week 4 predict if barbell exercises are done c
 
 published html file:
 
-# https://dannguyen.github.io/github-for-portfolios/lessons/deploy-github-pages/
+# https://jfku.github.io/PracticalMachineLearning/
