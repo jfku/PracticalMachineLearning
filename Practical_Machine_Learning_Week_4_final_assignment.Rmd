@@ -1,0 +1,121 @@
+---
+title: "Practical Machine Learning - Week 4 Prediction Assignment"
+author: "Jacob Kure"
+date: "8 aug 2018"
+output: html_document
+---
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+
+## Setting the environment
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message = FALSE, warning = FALSE}
+# Loading libraries
+library(readr)
+library(caret)
+```
+
+## Data load
+
+Loading training and test dataset into R:
+
+```{r warning = FALSE}
+# read in the data
+setwd("C:/Users/jfku/Documents")
+pml_train <- readr::read_csv(paste0("pml_train_test", "/","pml_train", ".csv"))
+pml_test <-  readr::read_csv(paste0("pml_train_test", "/","pml_test", ".csv"))
+# displaying dimensions of training dataset (rows, columns)
+dim(pml_train)
+
+```
+
+## Data wrangling
+
+Only part of the variables are interesting for the analysis why the first 7 columns with names and timestamps etc. are removed. The classe variable is formatted as a "factor" and finally columns with a percentage greater than 80 % of missing values are removed: 
+
+```{r message = FALSE, warning = FALSE}
+# I have chosen to remove first 7 columns from dataset
+pml_train <- pml_train[,-c(1:7)]
+pml_test <- pml_test[,-c(1:7)]
+# format classification variable to factor
+pml_train$classe <- as.factor(pml_train$classe)
+# find columns with more than 80 % NAs
+miss_perc <- colSums(is.na(pml_train))/nrow(pml_train)
+col_miss <- names(miss_perc[miss_perc > 0.80])
+# which columns?
+print(names(miss_perc[miss_perc > 0.80]))
+# remove columns from both datasets
+pml_train[,c(col_miss)] <- NULL
+pml_test[,c(col_miss)] <- NULL
+# remove existing rows with NA - only 1 row out of 19.622
+pml_train <- na.omit(pml_train)
+# having a look at the distribution of class variable which seems about equally distributed
+plot(pml_train$classe)
+```
+
+The class variable looks about equally distibuted (a little overweight of class A) why accuracy will be a fair measure of model performance. 
+
+## Machine Learning
+
+Split data into 75 % training and 25 % validation set:
+
+```{r}
+# classification: caret considers the first level of the factor variable (A) represents the event we’re trying to model. 
+inTrain <- createDataPartition(y=pml_train$classe, p=0.75,list=FALSE)
+training <- pml_train[inTrain,]
+validation <- pml_train[-inTrain,]
+
+# lot's of data - training (14718 rows / 53 columns) and validation set (4903 rows / 53 columns)
+dim(training)
+dim(validation)
+```
+
+10-fold cross-validation were used to tune the model and combat overfitting  on the training dataset. Accuracy is default metric in the train() function:
+
+```{r eval = FALSE}
+# we will use the same traincoltrol() object for all the models and using repeated 10-fold cross validation
+control <- trainControl(method="repeatedcv", number = 10, repeats = 10)
+set.seed(7)
+# default tuningLength = 3, gbm - boosted tree
+fit.gbm <- train(classe ~ ., data = training, method = "gbm", trControl = control)
+```
+
+```{r include = FALSE}
+fit.gbm <- readRDS(file="C:/Users/jfku/Documents/fitgbm.rds")
+```
+
+
+Show results from training the boosted tree model:
+
+```{r}
+plot(fit.gbm)
+```
+
+Predicting new values on the validation set:
+
+```{r}
+# Predictions on the validation set
+pred.gbm <- predict(fit.gbm, validation)
+```
+
+Having a look at the validation dataset results with the confusion matrix. The boosted tree perform have an Accuracy : 0.97. Pretty good.
+
+```{r}
+# statistics
+confusionMatrix(pred.gbm, validation$classe)
+```
+
+Predictions on the 20 different test cases:
+
+```{r}
+pred.test <- predict(fit.gbm, pml_test)
+print(pred.test)
+```
+
